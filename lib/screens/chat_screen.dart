@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import 'package:chat_app/services/chat_service.dart';
 import 'package:chat_app/services/encryption_service.dart';
 import 'package:chat_app/widgets/message_input.dart';
+import 'package:chat_app/screens/video_call_screen.dart';
 import 'package:lottie/lottie.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -131,9 +132,39 @@ class _ChatScreenState extends State<ChatScreen> {
               actions: [
                 IconButton(
                   icon: const Icon(Icons.video_call),
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => VideoCallScreen(
+                          channelId: _chatService.getChatId(
+                            _chatService.getCurrentUserId(),
+                            _selectedUserId,
+                          ),
+                          isVideo: true,
+                        ),
+                      ),
+                    );
+                  },
                 ),
-                IconButton(icon: const Icon(Icons.call), onPressed: () {}),
+                IconButton(
+                  icon: const Icon(Icons.call),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => VideoCallScreen(
+                          channelId: _chatService.getChatId(
+                            _chatService.getCurrentUserId(),
+                            _selectedUserId,
+                          ),
+                          isVideo: false,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+
                 IconButton(icon: const Icon(Icons.more_vert), onPressed: () {}),
               ],
             ),

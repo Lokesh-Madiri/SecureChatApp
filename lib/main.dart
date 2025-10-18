@@ -7,13 +7,16 @@ import 'screens/auth_screen.dart';
 import 'screens/chat_screen.dart';
 import 'services/user_service.dart';
 import 'package:lottie/lottie.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: ".env");
   runApp(const AppInitializer());
 }
 
 class AppInitializer extends StatelessWidget {
+  
   const AppInitializer({super.key});
 
   // Initialize Firebase safely and only once
