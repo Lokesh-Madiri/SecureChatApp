@@ -23,6 +23,12 @@ class _ChatScreenState extends State<ChatScreen> {
   final ChatService _chatService = ChatService();
   final EncryptionService _encryptionService = EncryptionService();
   final ImagePicker _imagePicker = ImagePicker();
+  Color? _chatBackgroundColor; // null means default (Lottie)
+  final List<String> _lottieOptions = [
+    'assets/Background_shooting_star.json',
+    //could add more
+  ];
+  String? _selectedLottie;
 
   String _selectedUserId = '';
   String _selectedUserName = '';
@@ -39,6 +45,117 @@ class _ChatScreenState extends State<ChatScreen> {
         _scrollToBottom();
       }
     });
+  }
+
+  void _showChatThemePicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(title: Text('Choose Lottie Background')),
+            SizedBox(
+              height: 120,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: _lottieOptions.length + 1,
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                itemBuilder: (context, index) {
+                  if (index == 0) {
+                    // Default option (no selected Lottie)
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _selectedLottie = null;
+                        });
+                        Navigator.pop(context);
+                      },
+                      child: Container(
+                        width: 100,
+                        decoration: BoxDecoration(
+                          border: _selectedLottie == null
+                              ? Border.all(color: Colors.blue, width: 3)
+                              : null,
+                          borderRadius: BorderRadius.circular(12),
+                          color: Colors.grey[300],
+                        ),
+                        child: const Center(child: Text('Default')),
+                      ),
+                    );
+                  }
+
+                  final lottieAsset = _lottieOptions[index - 1];
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _selectedLottie = lottieAsset;
+                        _chatBackgroundColor =
+                            null; // clear color on Lottie pick
+                      });
+                      Navigator.pop(context);
+                    },
+                    child: Container(
+                      width: 100,
+                      decoration: BoxDecoration(
+                        border: _selectedLottie == lottieAsset
+                            ? Border.all(color: Colors.blue, width: 3)
+                            : null,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Lottie.asset(
+                          lottieAsset,
+                          repeat: true,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const Divider(),
+            const ListTile(title: Text('Choose Color Theme')),
+            ListTile(
+              leading: const CircleAvatar(backgroundColor: Colors.blue),
+              title: const Text('Blue Theme'),
+              onTap: () {
+                setState(() {
+                  _chatBackgroundColor = Colors.blue.withOpacity(0.1);
+                  _selectedLottie = null; // clear Lottie on color pick
+                });
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const CircleAvatar(backgroundColor: Colors.green),
+              title: const Text('Green Theme'),
+              onTap: () {
+                setState(() {
+                  _chatBackgroundColor = Colors.green.withOpacity(0.1);
+                  _selectedLottie = null;
+                });
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const CircleAvatar(backgroundColor: Colors.black),
+              title: const Text('Dark Theme'),
+              onTap: () {
+                setState(() {
+                  _chatBackgroundColor = Colors.black.withOpacity(0.2);
+                  _selectedLottie = null;
+                });
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _scrollToBottom() {
@@ -92,6 +209,46 @@ class _ChatScreenState extends State<ChatScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Error signing out: $e')));
+    }
+  }
+
+  Future<void> _confirmAndDeleteChat() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Chat'),
+        content: const Text(
+          'Are you sure you want to delete the entire chat? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            child: const Text('Cancel'),
+            onPressed: () => Navigator.of(context).pop(false),
+          ),
+          ElevatedButton(
+            child: const Text('Delete'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.of(context).pop(true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await _chatService.deleteChat(_selectedUserId);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Chat deleted successfully.')),
+        );
+        setState(() {
+          // Optionally clear decrypted messages cache
+          _decryptedMessages.clear();
+        });
+      } catch (e) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to delete chat: $e')));
+      }
     }
   }
 
@@ -165,7 +322,33 @@ class _ChatScreenState extends State<ChatScreen> {
                   },
                 ),
 
-                IconButton(icon: const Icon(Icons.more_vert), onPressed: () {}),
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert),
+                  onSelected: (value) {
+                    // Handle menu item selection
+                    switch (value) {
+                      case 'chat_theme':
+                        print('Option 1 selected');
+                        _showChatThemePicker(context);
+                        break;
+                      case 'delete_chat':
+                        print('Option 2 selected');
+                        _confirmAndDeleteChat();
+                        break;
+                    }
+                  },
+                  itemBuilder: (BuildContext context) =>
+                      <PopupMenuEntry<String>>[
+                        const PopupMenuItem<String>(
+                          value: 'chat_theme',
+                          child: Text('Chat Theme'),
+                        ),
+                        const PopupMenuItem<String>(
+                          value: 'delete_chat',
+                          child: Text('Delete Chat'),
+                        ),
+                      ],
+                ),
               ],
             ),
       body: _isUsersListVisible ? _buildUsersList() : _buildChatInterface(),
@@ -227,14 +410,25 @@ class _ChatScreenState extends State<ChatScreen> {
       children: [
         // 🌀 Lottie Background
         Positioned.fill(
-          child: Opacity(
-            opacity: 1, // keep it subtle; you can increase this if you want
-            child: Lottie.asset(
-              'assets/Background_shooting_star.json', // your Lottie background file
-              fit: BoxFit.cover,
-              repeat: true,
-            ),
-          ),
+          child: _selectedLottie != null
+              ? Opacity(
+                  opacity: 1,
+                  child: Lottie.asset(
+                    _selectedLottie!,
+                    fit: BoxFit.cover,
+                    repeat: true,
+                  ),
+                )
+              : _chatBackgroundColor == null
+              ? Opacity(
+                  opacity: 1,
+                  child: Lottie.asset(
+                    'assets/Background_shooting_star.json',
+                    fit: BoxFit.cover,
+                    repeat: true,
+                  ),
+                )
+              : Container(color: _chatBackgroundColor),
         ),
 
         // 💬 Chat UI on top of background

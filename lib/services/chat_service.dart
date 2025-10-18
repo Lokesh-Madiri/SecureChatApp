@@ -183,4 +183,26 @@ class ChatService {
   }
 
   void getMessages(String s) {}
+
+  // Inside ChatService
+  Future<void> deleteChat(String otherUserId) async {
+    final currentUserId = getCurrentUserId();
+    final chatId = getChatId(currentUserId, otherUserId);
+
+    final messagesRef = FirebaseFirestore.instance
+        .collection('chats')
+        .doc(chatId)
+        .collection('messages');
+
+    final batch = FirebaseFirestore.instance.batch();
+
+    // Get all messages in the chat
+    final snapshot = await messagesRef.get();
+
+    for (var doc in snapshot.docs) {
+      batch.delete(doc.reference);
+    }
+
+    await batch.commit();
+  }
 }
