@@ -1,6 +1,6 @@
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
 import 'encryption_service.dart';
 
@@ -9,23 +9,29 @@ class ChatService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final EncryptionService _encryption = EncryptionService();
 
-  // Get current user ID
+  // 🔹 Get current user ID
   String getCurrentUserId() {
-    return _auth.currentUser?.uid ?? '';
+    final userId = _auth.currentUser?.uid ?? '';
+    print("[ChatService] Current user ID: $userId");
+    return userId;
   }
 
-  // Get all users except current user
+  // 🔹 Get all users except the current user
   Stream<QuerySnapshot> getUsersStream() {
+    print(
+      "[ChatService] Subscribing to users stream (excluding current user)...",
+    );
     return _firestore
         .collection("users")
         .where("uid", isNotEqualTo: _auth.currentUser?.uid)
         .snapshots();
   }
 
-  // Get messages between current user and selected user
+  // 🔹 Get messages between the current user and selected user
   Stream<QuerySnapshot> getMessagesStream(String otherUserId) {
-    String currentUserId = getCurrentUserId();
-    String chatId = _getChatId(currentUserId, otherUserId);
+    final currentUserId = getCurrentUserId();
+    final chatId = _getChatId(currentUserId, otherUserId);
+    print("[ChatService] Listening to message stream for chat: $chatId");
 
     return _firestore
         .collection("chats")
@@ -35,25 +41,23 @@ class ChatService {
         .snapshots();
   }
 
-  // Send text message
+  // 🔹 Send a text message
   Future<void> sendTextMessage(String receiverId, String message) async {
+    print("[ChatService] Sending text message to $receiverId: $message");
     try {
-      String encryptedMessage = _encryption.encrypt(message);
+      final encryptedMessage = _encryption.encrypt(message);
+      final currentUserId = getCurrentUserId();
+      final chatId = _getChatId(currentUserId, receiverId);
+      final timestamp = Timestamp.now();
 
-      String currentUserId = getCurrentUserId();
-      String chatId = _getChatId(currentUserId, receiverId);
-      Timestamp timestamp = Timestamp.now();
-
-      // Create chat document if it doesn't exist
       await _firestore.collection("chats").doc(chatId).set({
         "participants": [currentUserId, receiverId],
         "chatId": chatId,
-        "lastMessage": message, // Store unencrypted for preview
+        "lastMessage": message,
         "lastMessageTime": timestamp,
         "lastMessageSender": currentUserId,
       }, SetOptions(merge: true));
 
-      // Add message to chat collection
       await _firestore
           .collection("chats")
           .doc(chatId)
@@ -66,32 +70,28 @@ class ChatService {
             "timestamp": timestamp,
             "isRead": false,
           });
+
+      print("[ChatService] Message successfully sent!");
     } catch (e) {
-      print("Error sending message: $e");
+      print("[ChatService][Error] Failed to send message: $e");
       rethrow;
     }
   }
 
-  // Send image message
+  // 🔹 Send an image message (Base64 encoded)
   Future<void> sendImageMessage(String receiverId, File imageFile) async {
+    print("[ChatService] Sending image to $receiverId...");
     try {
-      String currentUserId = getCurrentUserId();
-      String chatId = _getChatId(currentUserId, receiverId);
-      Timestamp timestamp = Timestamp.now();
+      final currentUserId = getCurrentUserId();
+      final chatId = _getChatId(currentUserId, receiverId);
+      final timestamp = Timestamp.now();
 
-      // Upload image to Firebase Storage
-      String fileName = DateTime.now().millisecondsSinceEpoch.toString();
-      Reference ref = FirebaseStorage.instance
-          .ref()
-          .child("chat_images")
-          .child(chatId)
-          .child(fileName);
+      final imageBytes = await imageFile.readAsBytes();
+      final base64Image = base64Encode(imageBytes);
+      print(
+        "[ChatService] Image converted to Base64 string (length: ${base64Image.length})",
+      );
 
-      UploadTask uploadTask = ref.putFile(imageFile);
-      TaskSnapshot snapshot = await uploadTask;
-      String imageUrl = await snapshot.ref.getDownloadURL();
-
-      // Create chat document if it doesn't exist
       await _firestore.collection("chats").doc(chatId).set({
         "participants": [currentUserId, receiverId],
         "chatId": chatId,
@@ -100,7 +100,6 @@ class ChatService {
         "lastMessageSender": currentUserId,
       }, SetOptions(merge: true));
 
-      // Add message to chat collection
       await _firestore
           .collection("chats")
           .doc(chatId)
@@ -108,101 +107,186 @@ class ChatService {
           .add({
             "senderId": currentUserId,
             "receiverId": receiverId,
-            "message": imageUrl,
-            "type": "image",
+            "message": base64Image,
+            "type": "image_base64",
             "timestamp": timestamp,
             "isRead": false,
           });
+
+      print("[ChatService] Image message sent successfully!");
     } catch (e) {
-      print("Error sending image: $e");
+      print("[ChatService][Error] Failed to send image: $e");
       rethrow;
     }
   }
 
-  // Mark messages as read
-  Future<void> markMessagesAsRead(String chatId, String senderId) async {
-    String currentUserId = getCurrentUserId();
+  // 🔹 NEW: Send a voice message (Base64 encoded)
+  Future<void> sendVoiceMessage(
+    String receiverId,
+    File audioFile,
+    double durationSeconds,
+  ) async {
+    print("[ChatService] Sending voice message to $receiverId...");
+    try {
+      final currentUserId = getCurrentUserId();
+      final chatId = _getChatId(currentUserId, receiverId);
+      final timestamp = Timestamp.now();
 
-    QuerySnapshot unreadMessages = await _firestore
-        .collection("chats")
-        .doc(chatId)
-        .collection("messages")
-        .where("senderId", isEqualTo: senderId)
-        .where("receiverId", isEqualTo: currentUserId)
-        .where("isRead", isEqualTo: false)
-        .get();
+      // ✅ Read audio bytes
+      final audioBytes = await audioFile.readAsBytes();
+      final base64Audio = base64Encode(audioBytes);
+      print(
+        "[ChatService] Audio file converted to Base64 (length: ${base64Audio.length})",
+      );
 
-    for (var doc in unreadMessages.docs) {
-      await doc.reference.update({"isRead": true});
+      // ✅ Ensure chat exists
+      await _firestore.collection("chats").doc(chatId).set({
+        "participants": [currentUserId, receiverId],
+        "chatId": chatId,
+        "lastMessage": "[Voice Message]",
+        "lastMessageTime": timestamp,
+        "lastMessageSender": currentUserId,
+      }, SetOptions(merge: true));
+
+      // ✅ Add voice message to Firestore
+      await _firestore
+          .collection("chats")
+          .doc(chatId)
+          .collection("messages")
+          .add({
+            "senderId": currentUserId,
+            "receiverId": receiverId,
+            "message": base64Audio,
+            "type": "voice_base64",
+            "duration": durationSeconds,
+            "timestamp": timestamp,
+            "isRead": false,
+          });
+
+      print(
+        "[ChatService] Voice message sent successfully! Duration: ${durationSeconds.toStringAsFixed(2)}s",
+      );
+    } catch (e) {
+      print("[ChatService][Error] Failed to send voice message: $e");
+      rethrow;
     }
   }
 
-  // Get user data by ID
-  Future<Map<String, dynamic>?> getUserData(String userId) async {
+  // 🔹 Mark messages as read
+  Future<void> markMessagesAsRead(String chatId, String senderId) async {
+    print(
+      "[ChatService] Marking messages as read in chat: $chatId from sender: $senderId",
+    );
     try {
-      DocumentSnapshot userDoc = await _firestore
-          .collection("users")
-          .doc(userId)
+      final currentUserId = getCurrentUserId();
+
+      final unreadMessages = await _firestore
+          .collection("chats")
+          .doc(chatId)
+          .collection("messages")
+          .where("senderId", isEqualTo: senderId)
+          .where("receiverId", isEqualTo: currentUserId)
+          .where("isRead", isEqualTo: false)
           .get();
 
-      if (userDoc.exists) {
-        return userDoc.data() as Map<String, dynamic>;
+      print(
+        "[ChatService] Found ${unreadMessages.docs.length} unread messages.",
+      );
+
+      for (final doc in unreadMessages.docs) {
+        await doc.reference.update({"isRead": true});
       }
-      return null;
+
+      print("[ChatService] All unread messages marked as read.");
     } catch (e) {
-      print("Error getting user data: $e");
+      print("[ChatService][Error] Failed to mark messages as read: $e");
+    }
+  }
+
+  // 🔹 Get user data by ID
+  Future<Map<String, dynamic>?> getUserData(String userId) async {
+    print("[ChatService] Fetching user data for: $userId");
+    try {
+      final userDoc = await _firestore.collection("users").doc(userId).get();
+
+      if (userDoc.exists) {
+        print("[ChatService] User data retrieved successfully.");
+        return userDoc.data() as Map<String, dynamic>;
+      } else {
+        print("[ChatService] No user found with ID: $userId");
+        return null;
+      }
+    } catch (e) {
+      print("[ChatService][Error] Failed to get user data: $e");
       return null;
     }
   }
 
-  // Update user profile
+  // 🔹 Update user profile
   Future<void> updateUserProfile(
     String userId,
     Map<String, dynamic> updates,
   ) async {
+    print(
+      "[ChatService] Updating user profile for: $userId with data: $updates",
+    );
     try {
       await _firestore.collection("users").doc(userId).update(updates);
+      print("[ChatService] Profile updated successfully!");
     } catch (e) {
-      print("Error updating user profile: $e");
+      print("[ChatService][Error] Failed to update profile: $e");
       throw "Failed to update profile";
     }
   }
 
-  // Get chat ID from two user IDs
+  // 🔹 Generate unique chat ID from two user IDs
   String _getChatId(String userId1, String userId2) {
-    List<String> ids = [userId1, userId2];
-    ids.sort();
-    return ids.join('_');
+    final ids = [userId1, userId2]..sort();
+    final chatId = ids.join('_');
+    print("[ChatService] Generated chat ID: $chatId");
+    return chatId;
   }
 
-  // Add this in ChatService
+  // 🔹 Public chat ID getter (for UI or logic)
   String getChatId(String userId1, String userId2) {
-    List<String> ids = [userId1, userId2];
-    ids.sort();
-    return ids.join('_');
+    final ids = [userId1, userId2]..sort();
+    final chatId = ids.join('_');
+    print("[ChatService] getChatId() returned: $chatId");
+    return chatId;
   }
 
-  void getMessages(String s) {}
+  // 🔹 Stub for unused function
+  void getMessages(String s) {
+    print("[ChatService] getMessages($s) called (no implementation).");
+  }
 
-  // Inside ChatService
+  // 🔹 Delete chat (and all its messages)
   Future<void> deleteChat(String otherUserId) async {
-    final currentUserId = getCurrentUserId();
-    final chatId = getChatId(currentUserId, otherUserId);
+    print("[ChatService] Deleting chat with user: $otherUserId");
+    try {
+      final currentUserId = getCurrentUserId();
+      final chatId = getChatId(currentUserId, otherUserId);
 
-    final messagesRef = FirebaseFirestore.instance
-        .collection('chats')
-        .doc(chatId)
-        .collection('messages');
+      final messagesRef = _firestore
+          .collection('chats')
+          .doc(chatId)
+          .collection('messages');
+      final batch = _firestore.batch();
 
-    final batch = FirebaseFirestore.instance.batch();
+      final snapshot = await messagesRef.get();
+      print("[ChatService] Found ${snapshot.docs.length} messages to delete.");
 
-    // Get all messages in the chat
-    final snapshot = await messagesRef.get();
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
 
-    for (var doc in snapshot.docs) {
-      batch.delete(doc.reference);
+      await batch.commit();
+      print(
+        "[ChatService] Chat $chatId and all messages deleted successfully.",
+      );
+    } catch (e) {
+      print("[ChatService][Error] Failed to delete chat: $e");
+      rethrow;
     }
-
-    await batch.commit();
   }
 }

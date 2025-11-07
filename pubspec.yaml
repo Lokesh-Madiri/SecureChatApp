@@ -21,6 +21,9 @@ version: 1.0.0+1
 environment:
   sdk: ^3.8.1
 
+platforms:
+  android:
+
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
 # consider running `flutter pub upgrade --major-versions`. Alternatively,
@@ -32,19 +35,20 @@ dependencies:
     sdk: flutter
   firebase_core: ^4.1.0
   firebase_auth: ^6.0.2
-  cloud_firestore: ^6.0.1
-  firebase_storage: ^13.0.1
-  image_picker: ^1.0.4
-  crypto: ^3.0.3
+  cloud_firestore: ^6.0.3
+  image_picker: ^1.2.0
+  crypto: ^3.0.6
   shared_preferences: ^2.2.2
   intl: ^0.20.2
-  cached_network_image: ^3.3.0
   encrypt: ^5.0.1
   photo_view: ^0.15.0
   google_sign_in: ^7.1.1
   agora_rtc_engine: ^6.3.2
   permission_handler: ^12.0.1
   flutter_dotenv: ^5.1.0
+  record: ^6.1.2
+  path_provider: ^2.1.2
+  just_audio: ^0.9.38
 
 dev_dependencies:
   flutter_test:
@@ -100,3 +104,6 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+dependency_overrides:
+  record_platform_interface: 1.4.0
