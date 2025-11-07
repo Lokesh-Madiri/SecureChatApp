@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import '../services/chat_service.dart';
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart'; // 👈 added
 
 class MessageInput extends StatefulWidget {
   final Function(String) onSendMessage;
@@ -25,10 +26,23 @@ class _MessageInputState extends State<MessageInput> {
   final TextEditingController _messageController = TextEditingController();
   bool _isComposing = false;
   bool _isRecording = false;
+  bool _showEmojiPicker = false; // 👈 added for emoji picker toggle
 
   final AudioRecorder _recorder = AudioRecorder();
   final ChatService _chatService = ChatService();
   final ImagePicker _picker = ImagePicker();
+
+  @override
+  void initState() {
+    super.initState();
+
+    // 👇 close emoji picker when keyboard opens
+    FocusManager.instance.addListener(() {
+      if (FocusManager.instance.primaryFocus != null && _showEmojiPicker) {
+        setState(() => _showEmojiPicker = false);
+      }
+    });
+  }
 
   // 🔹 Send a text message
   void _handleSubmitted(String text) async {
@@ -43,6 +57,67 @@ class _MessageInputState extends State<MessageInput> {
 
     _messageController.clear();
     setState(() => _isComposing = false);
+  }
+
+  /// Insert emoji text at current cursor position
+  void _onEmojiSelected(String emoji) {
+    final text = _messageController.text;
+    final selection = _messageController.selection;
+    final newText = (selection.isValid && selection.start >= 0)
+        ? text.replaceRange(selection.start, selection.end, emoji)
+        : text + emoji;
+
+    final cursorPos =
+        (selection.isValid && selection.start >= 0
+            ? selection.start
+            : newText.length - emoji.length) +
+        emoji.length;
+
+    _messageController.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: cursorPos),
+    );
+
+    setState(() => _isComposing = _messageController.text.isNotEmpty);
+  }
+
+  /// Handle backspace tapped on emoji keyboard
+  void _onBackspacePressed() {
+    final text = _messageController.text;
+    final selection = _messageController.selection;
+
+    if (!selection.isValid) {
+      if (text.isNotEmpty) {
+        final newText = text.substring(0, text.length - 1);
+        _messageController.value = TextEditingValue(
+          text: newText,
+          selection: TextSelection.collapsed(offset: newText.length),
+        );
+      }
+      setState(() => _isComposing = _messageController.text.isNotEmpty);
+      return;
+    }
+
+    final start = selection.start;
+    final end = selection.end;
+
+    if (start != end) {
+      final newText = text.replaceRange(start, end, '');
+      _messageController.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: start),
+      );
+    } else if (start > 0) {
+      // remove previous code unit (this is a simple approach; emoji surrogate pairs handled well enough by picker)
+      final charStart = start - 1;
+      final newText = text.replaceRange(charStart, end, '');
+      _messageController.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: charStart),
+      );
+    }
+
+    setState(() => _isComposing = _messageController.text.isNotEmpty);
   }
 
   // 🎤 Start recording
@@ -126,83 +201,131 @@ class _MessageInputState extends State<MessageInput> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 2,
-            offset: const Offset(0, -1),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // 😊 Emoji button
-          IconButton(
-            icon: const Icon(Icons.emoji_emotions_outlined),
-            onPressed: () => print('[MessageInput] Emoji tapped.'),
-          ),
-
-          // 📎 Attach button
-          IconButton(
-            icon: const Icon(Icons.attach_file),
-            onPressed: () {
-              print('[MessageInput] Attach image tapped.');
-              widget.onSendImage();
-            },
-          ),
-
-          // ✏️ Text input
-          Expanded(
-            child: TextField(
-              controller: _messageController,
-              decoration: InputDecoration(
-                hintText: 'Type a message...',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  borderSide: BorderSide.none,
-                ),
-                filled: true,
-                fillColor: Colors.grey[100],
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // 💬 Message input bar
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 2,
+                offset: const Offset(0, -1),
               ),
-              onChanged: (text) {
-                setState(() => _isComposing = text.isNotEmpty);
-              },
-              onSubmitted: _handleSubmitted,
-            ),
+            ],
           ),
-
-          // 🎤 Mic / Stop
-          IconButton(
-            icon: Icon(
-              _isRecording ? Icons.stop_circle : Icons.mic,
-              color: _isRecording ? Colors.red : Colors.black87,
-            ),
-            onPressed: () {
-              if (_isRecording) {
-                _stopRecording();
-              } else {
-                _startRecording();
-              }
-            },
-          ),
-
-          // 🚀 Send / 📸 Camera
-          _isComposing
-              ? IconButton(
-                  icon: const Icon(Icons.send, color: Color(0xFF128C7E)),
-                  onPressed: () => _handleSubmitted(_messageController.text),
-                )
-              : IconButton(
-                  icon: const Icon(Icons.camera_alt),
-                  onPressed: _openCamera,
+          child: Row(
+            children: [
+              // 😊 Emoji button (toggle)
+              IconButton(
+                icon: Icon(
+                  _showEmojiPicker
+                      ? Icons.keyboard_alt_outlined
+                      : Icons.emoji_emotions_outlined,
                 ),
-        ],
-      ),
+                onPressed: () {
+                  setState(() => _showEmojiPicker = !_showEmojiPicker);
+                  if (_showEmojiPicker) FocusScope.of(context).unfocus();
+                  print('[MessageInput] Emoji toggle: $_showEmojiPicker');
+                },
+              ),
+
+              // 📎 Attach button
+              IconButton(
+                icon: const Icon(Icons.attach_file),
+                onPressed: () {
+                  print('[MessageInput] Attach image tapped.');
+                  widget.onSendImage();
+                },
+              ),
+
+              // ✏️ Text input
+              Expanded(
+                child: TextField(
+                  controller: _messageController,
+                  decoration: InputDecoration(
+                    hintText: 'Type a message...',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(24),
+                      borderSide: BorderSide.none,
+                    ),
+                    filled: true,
+                    fillColor: Colors.grey[100],
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                  ),
+                  onChanged: (text) {
+                    setState(() => _isComposing = text.isNotEmpty);
+                  },
+                  onSubmitted: _handleSubmitted,
+                  onTap: () {
+                    if (_showEmojiPicker) {
+                      setState(() => _showEmojiPicker = false);
+                    }
+                  },
+                ),
+              ),
+
+              // 🎤 Mic / Stop
+              IconButton(
+                icon: Icon(
+                  _isRecording ? Icons.stop_circle : Icons.mic,
+                  color: _isRecording ? Colors.red : Colors.black87,
+                ),
+                onPressed: () {
+                  if (_isRecording) {
+                    _stopRecording();
+                  } else {
+                    _startRecording();
+                  }
+                },
+              ),
+
+              // 🚀 Send / 📸 Camera
+              _isComposing
+                  ? IconButton(
+                      icon: const Icon(Icons.send, color: Color(0xFF128C7E)),
+                      onPressed: () =>
+                          _handleSubmitted(_messageController.text),
+                    )
+                  : IconButton(
+                      icon: const Icon(Icons.camera_alt),
+                      onPressed: _openCamera,
+                    ),
+            ],
+          ),
+        ),
+
+        // 😄 Emoji picker (visible when toggled)
+        Offstage(
+          offstage: !_showEmojiPicker,
+          child: SizedBox(
+            height: 260,
+            child: EmojiPicker(
+              onEmojiSelected: (category, emoji) {
+                _onEmojiSelected(emoji.emoji);
+              },
+              onBackspacePressed: _onBackspacePressed,
+              config: const Config(
+                emojiViewConfig: EmojiViewConfig(
+                  emojiSizeMax: 28,
+                  backgroundColor: Color(0xFFF2F2F2),
+                ),
+                categoryViewConfig: CategoryViewConfig(
+                  showBackspaceButton: true,
+                  backspaceColor: Colors.black54,
+                ),
+                bottomActionBarConfig: BottomActionBarConfig(
+                  backgroundColor: Color(0xFFF2F2F2),
+                  buttonColor: Color(0xFF128C7E),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
