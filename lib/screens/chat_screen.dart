@@ -226,9 +226,9 @@ class _ChatScreenState extends State<ChatScreen> {
             onPressed: () => Navigator.of(context).pop(false),
           ),
           ElevatedButton(
-            child: const Text('Delete'),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
           ),
         ],
       ),
@@ -464,7 +464,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 _chatService.sendTextMessage(_selectedUserId, message);
                 _scrollToBottom();
               },
-              onSendImage: _sendImage,
+              onSendImage: _sendImage, receiverId: _selectedUserId,
             ),
           ],
         ),

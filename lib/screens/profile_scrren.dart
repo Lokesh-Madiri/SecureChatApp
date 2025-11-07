@@ -1,9 +1,10 @@
+import 'dart:convert';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:chat_app/services/chat_service.dart';
-import 'dart:io';
 import 'package:lottie/lottie.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -92,26 +93,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _isLoading = true;
         });
 
-        // Upload image to Firebase Storage
-        String fileName =
-            'profile_${_currentUser.uid}${DateTime.now().millisecondsSinceEpoch}.jpg';
-        Reference ref = FirebaseStorage.instance
-            .ref()
-            .child("profile_images")
-            .child(fileName);
+        // Read image bytes
+        final bytes = await image.readAsBytes();
 
-        UploadTask uploadTask = ref.putFile(File(image.path));
-        TaskSnapshot snapshot = await uploadTask;
-        String downloadUrl = await snapshot.ref.getDownloadURL();
+        // Encode as Base64
+        final base64Image = base64Encode(bytes);
+
+        // Store in Firestore
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(_currentUser.uid)
+            .update({'profileImage': base64Image});
 
         setState(() {
-          _profileImageUrl = downloadUrl;
+          _profileImageUrl = "null"; // You may want to update this logic
           _isLoading = false;
         });
 
-        // Update profile with new image URL
+        // Update local model/service if needed
         await _chatService.updateUserProfile(_currentUser.uid, {
-          'profileImage': downloadUrl,
+          'profileImage': base64Image,
         });
       }
     } catch (e) {
@@ -165,7 +166,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             : const AssetImage(
                                 'assets/images/default_avatar.png',
                               ),
-                        backgroundColor: const Color.fromARGB(255, 255, 253, 253),
+                        backgroundColor: const Color.fromARGB(
+                          255,
+                          255,
+                          253,
+                          253,
+                        ),
                       ),
                       Positioned(
                         bottom: 0,
@@ -174,7 +180,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           decoration: BoxDecoration(
                             color: const Color(0xFF128C7E),
                             shape: BoxShape.circle,
-                            border: Border.all(color: const Color.fromARGB(60, 255, 255, 255), width: 2),
+                            border: Border.all(
+                              color: const Color.fromARGB(60, 255, 255, 255),
+                              width: 2,
+                            ),
                           ),
                           child: IconButton(
                             icon: const Icon(
