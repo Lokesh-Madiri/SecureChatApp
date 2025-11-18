@@ -128,6 +128,27 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
   }
 
+  Widget _buildBioBox() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _surfaceColor,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: TextFormField(
+        controller: _bioController,
+        maxLines: 3,
+        enabled: _isEditing,
+        style: TextStyle(color: _onSurfaceColor),
+        decoration: InputDecoration(
+          hintText: "Tell us about yourself...",
+          hintStyle: TextStyle(color: _onSurfaceColor.withOpacity(0.5)),
+          border: InputBorder.none,
+        ),
+      ),
+    );
+  }
+
   Future<void> _uploadProfileImage() async {
     try {
       final XFile? image = await _imagePicker.pickImage(
@@ -375,63 +396,36 @@ class _ProfileScreenState extends State<ProfileScreen>
           ? _buildLoadingState()
           : FadeTransition(
               opacity: _fadeAnimation,
-              child: SlideTransition(
-                position: _slideAnimation,
-                child: CustomScrollView(
-                  slivers: [
-                    // Profile Header
-                    SliverAppBar(
-                      expandedHeight: 200,
-                      flexibleSpace: FlexibleSpaceBar(
-                        background: Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [_primaryColor, _secondaryColor],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
+              child: CustomScrollView(
+                slivers: [
+                  // ---------------------
+                  // HEADER SECTION
+                  // ---------------------
+                  SliverAppBar(
+                    expandedHeight: 260,
+                    backgroundColor: Colors.transparent,
+                    elevation: 0,
+                    pinned: true,
+                    flexibleSpace: FlexibleSpaceBar(
+                      background: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [_primaryColor, _secondaryColor],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
                         ),
-                      ),
-                      actions: [
-                        IconButton(
-                          icon: Icon(
-                            _isEditing ? Icons.close : Icons.edit,
-                            color: Colors.white,
-                          ),
-                          onPressed: _toggleEditing,
-                        ),
-                      ],
-                    ),
-
-                    // Profile Content
-                    SliverList(
-                      delegate: SliverChildListDelegate([
-                        // Profile Picture Section
-                        Container(
-                          transform: Matrix4.translationValues(0, -60, 0),
-                          child: Column(
-                            children: [
-                              Stack(
-                                children: [
-                                  Container(
-                                    width: 120,
-                                    height: 120,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: _surfaceColor,
-                                        width: 4,
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.3),
-                                          blurRadius: 10,
-                                          offset: const Offset(0, 4),
-                                        ),
-                                      ],
-                                    ),
-                                    child: CircleAvatar(
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 40.0),
+                          child: Align(
+                            alignment: Alignment.bottomCenter,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                // Profile Image
+                                Stack(
+                                  children: [
+                                    CircleAvatar(
                                       radius: 56,
                                       backgroundColor: _surfaceColor,
                                       child: _profileImageBase64.isNotEmpty
@@ -443,237 +437,220 @@ class _ProfileScreenState extends State<ProfileScreen>
                                                 width: 112,
                                                 height: 112,
                                                 fit: BoxFit.cover,
-                                                errorBuilder:
-                                                    (
-                                                      context,
-                                                      error,
-                                                      stackTrace,
-                                                    ) {
-                                                      return _buildDefaultAvatar();
-                                                    },
                                               ),
                                             )
                                           : _buildDefaultAvatar(),
                                     ),
-                                  ),
-                                  if (_isEditing)
-                                    Positioned(
-                                      bottom: 0,
-                                      right: 0,
-                                      child: Container(
-                                        width: 40,
-                                        height: 40,
-                                        decoration: BoxDecoration(
-                                          color: _primaryColor,
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                            color: _surfaceColor,
-                                            width: 3,
+
+                                    // Camera Button
+                                    if (_isEditing)
+                                      Positioned(
+                                        right: -4,
+                                        bottom: -4,
+                                        child: GestureDetector(
+                                          onTap: _showImageSourceDialog,
+                                          child: Container(
+                                            padding: const EdgeInsets.all(6),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              shape: BoxShape.circle,
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  blurRadius: 8,
+                                                  color: Colors.black26,
+                                                ),
+                                              ],
+                                            ),
+                                            child: Icon(
+                                              Icons.camera_alt,
+                                              size: 22,
+                                              color: _primaryColor,
+                                            ),
                                           ),
                                         ),
-                                        child: IconButton(
-                                          icon: const Icon(
-                                            Icons.camera_alt,
-                                            color: Colors.white,
-                                            size: 18,
-                                          ),
-                                          onPressed: _showImageSourceDialog,
-                                        ),
                                       ),
-                                    ),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                _nameController.text.isNotEmpty
-                                    ? _nameController.text
-                                    : 'Your Name',
-                                style: TextStyle(
-                                  color: _onSurfaceColor,
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
+                                  ],
                                 ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                _currentUser?.email ?? '',
-                                style: TextStyle(
-                                  color: _onSurfaceColor.withOpacity(0.7),
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
 
-                        // Profile Form
-                        Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Column(
-                            children: [
-                              // Bio Section
-                              _buildSectionHeader('About Me'),
-                              const SizedBox(height: 16),
-                              TextFormField(
-                                controller: _bioController,
-                                maxLines: 3,
-                                maxLength: 150,
-                                enabled: _isEditing,
-                                style: TextStyle(color: _onSurfaceColor),
-                                decoration: InputDecoration(
-                                  hintText: 'Tell us about yourself...',
-                                  hintStyle: TextStyle(
-                                    color: _onSurfaceColor.withOpacity(0.5),
-                                  ),
-                                  filled: true,
-                                  fillColor: _surfaceColor,
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                    borderSide: BorderSide.none,
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                    borderSide: BorderSide(
-                                      color: _surfaceColor.withOpacity(0.5),
-                                    ),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                    borderSide: BorderSide(
-                                      color: _primaryColor,
-                                      width: 2,
-                                    ),
+                                const SizedBox(height: 12),
+
+                                Text(
+                                  _nameController.text,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w700,
                                   ),
                                 ),
-                              ),
-
-                              const SizedBox(height: 24),
-
-                              // Personal Information Section
-                              _buildSectionHeader('Personal Information'),
-                              const SizedBox(height: 16),
-                              _buildInfoField(
-                                label: 'Full Name',
-                                icon: Icons.person_outline,
-                                controller: _nameController,
-                                isEditing: _isEditing,
-                              ),
-                              const SizedBox(height: 16),
-                              _buildInfoField(
-                                label: 'Email',
-                                icon: Icons.email_outlined,
-                                value: _currentUser?.email ?? 'Not available',
-                                isEditing: false,
-                              ),
-                              const SizedBox(height: 16),
-                              _buildInfoField(
-                                label: 'Member Since',
-                                icon: Icons.calendar_today,
-                                value:
-                                    _currentUser?.metadata.creationTime != null
-                                    ? DateFormat('MMM dd, yyyy').format(
-                                        _currentUser!.metadata.creationTime!,
-                                      )
-                                    : 'Unknown',
-                                isEditing: false,
-                              ),
-
-                              const SizedBox(height: 40),
-
-                              // Action Buttons
-                              if (_isEditing) ...[
-                                SizedBox(
-                                  width: double.infinity,
-                                  height: 56,
-                                  child: ElevatedButton(
-                                    onPressed: _updateProfile,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: _primaryColor,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(16),
-                                      ),
-                                      elevation: 4,
-                                    ),
-                                    child: const Text(
-                                      'Save Changes',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                SizedBox(
-                                  width: double.infinity,
-                                  height: 56,
-                                  child: OutlinedButton(
-                                    onPressed: _toggleEditing,
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: _onSurfaceColor,
-                                      side: BorderSide(
-                                        color: _onSurfaceColor.withOpacity(0.3),
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(16),
-                                      ),
-                                    ),
-                                    child: const Text('Cancel'),
-                                  ),
-                                ),
-                              ] else ...[
-                                SizedBox(
-                                  width: double.infinity,
-                                  height: 56,
-                                  child: ElevatedButton(
-                                    onPressed: _toggleEditing,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: _primaryColor,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(16),
-                                      ),
-                                      elevation: 4,
-                                    ),
-                                    child: const Text(
-                                      'Edit Profile',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  _currentUser!.email ?? "",
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.8),
+                                    fontSize: 14,
                                   ),
                                 ),
                               ],
-
-                              const SizedBox(height: 24),
-
-                              // Sign Out Button
-                              SizedBox(
-                                width: double.infinity,
-                                height: 56,
-                                child: OutlinedButton(
-                                  onPressed: _signOut,
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: _errorColor,
-                                    side: BorderSide(color: _errorColor),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                  ),
-                                  child: const Text('Sign Out'),
-                                ),
-                              ),
-
-                              const SizedBox(height: 40),
-                            ],
+                            ),
                           ),
                         ),
-                      ]),
+                      ),
                     ),
-                  ],
-                ),
+
+                    // edit icon
+                    actions: [
+                      IconButton(
+                        icon: Icon(
+                          _isEditing ? Icons.close : Icons.edit,
+                          color: Colors.white,
+                        ),
+                        onPressed: _toggleEditing,
+                      ),
+                    ],
+                  ),
+
+                  // ---------------------
+                  // MAIN CONTENT
+                  // ---------------------
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // About Me
+                          _buildSectionHeader("About Me"),
+                          const SizedBox(height: 12),
+                          _buildBioBox(),
+
+                          const SizedBox(height: 30),
+
+                          // Personal Info
+                          _buildSectionHeader("Personal Information"),
+                          const SizedBox(height: 12),
+
+                          _buildInfoField(
+                            label: "Full Name",
+                            icon: Icons.person_outline,
+                            controller: _nameController,
+                            isEditing: _isEditing,
+                          ),
+                          const SizedBox(height: 16),
+
+                          _buildInfoField(
+                            label: "Email",
+                            icon: Icons.email_outlined,
+                            value: _currentUser?.email,
+                            isEditing: false,
+                          ),
+                          const SizedBox(height: 16),
+
+                          _buildInfoField(
+                            label: "Member Since",
+                            icon: Icons.calendar_today,
+                            value: DateFormat(
+                              'MMM dd, yyyy',
+                            ).format(_currentUser!.metadata.creationTime!),
+                            isEditing: false,
+                          ),
+
+                          const SizedBox(height: 40),
+
+                          if (_isEditing)
+                            _buildSaveCancelButtons()
+                          else
+                            _buildEditButton(),
+
+                          const SizedBox(height: 30),
+
+                          _buildLogoutButton(),
+                          const SizedBox(height: 60),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
+    );
+  }
+
+  Widget _buildSaveCancelButtons() {
+    return Column(
+      children: [
+        SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: ElevatedButton(
+            onPressed: _updateProfile,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _primaryColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            child: const Text(
+              "Save Changes",
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: OutlinedButton(
+            onPressed: _toggleEditing,
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: _onSurfaceColor.withOpacity(0.4)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            child: const Text("Cancel", style: TextStyle(fontSize: 16)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEditButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: ElevatedButton(
+        onPressed: _toggleEditing,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _primaryColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+        child: const Text(
+          "Edit Profile",
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLogoutButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: OutlinedButton(
+        onPressed: _signOut,
+        style: OutlinedButton.styleFrom(
+          side: BorderSide(color: _errorColor),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+        child: Text(
+          "Sign Out",
+          style: TextStyle(fontSize: 16, color: _errorColor),
+        ),
+      ),
     );
   }
 
