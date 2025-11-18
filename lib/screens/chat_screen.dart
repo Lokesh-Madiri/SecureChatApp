@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:chat_app/widgets/chat_bubble.dart';
 import 'package:flutter/material.dart';
@@ -25,6 +26,10 @@ class _ChatScreenState extends State<ChatScreen>
   final EncryptionService _encryptionService = EncryptionService();
   final ImagePicker _imagePicker = ImagePicker();
 
+  // 🔥 ADDED FOR USER SEARCH
+  bool _isSearchingUsers = false; // shows/hides search bar in users list
+  String _userSearchQuery = ''; // stores search text
+
   // Theme and Design
   final Color _primaryColor = const Color(0xFF6366F1);
   final Color _secondaryColor = const Color(0xFF8B5CF6);
@@ -38,6 +43,8 @@ class _ChatScreenState extends State<ChatScreen>
     // Add more Lottie files here
   ];
   String? _selectedLottie;
+
+  String _selectedUserImageBase64 = "";
 
   String _selectedUserId = '';
   String _selectedUserName = '';
@@ -301,14 +308,21 @@ class _ChatScreenState extends State<ChatScreen>
     }
   }
 
-  void _selectUser(String userId, String userName, String userEmail) {
+  void _selectUser(
+    String userId,
+    String userName,
+    String userEmail,
+    String profileImage,
+  ) {
     setState(() {
       _selectedUserId = userId;
       _selectedUserName = userName;
       _selectedUserEmail = userEmail;
+      _selectedUserImageBase64 = profileImage; // 🔥 Add this
       _isUsersListVisible = false;
       _decryptedMessages.clear();
     });
+
     _animationController.reset();
     _animationController.forward();
   }
@@ -450,16 +464,53 @@ class _ChatScreenState extends State<ChatScreen>
             ],
           ),
           child: AppBar(
-            title: const Text('Secure Chat'),
             backgroundColor: Colors.transparent,
             elevation: 0,
+
+            // 🔥 SEARCH BAR ADDED HERE
+            title: _isSearchingUsers
+                ? TextField(
+                    autofocus: true,
+                    style: const TextStyle(color: Colors.white),
+                    cursorColor: Colors.white,
+                    decoration: const InputDecoration(
+                      hintText: "Search users...",
+                      hintStyle: TextStyle(color: Colors.white70),
+                      border: InputBorder.none,
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        _userSearchQuery = value.toLowerCase();
+                      });
+                    },
+                  )
+                : const Text("Secure Chat"),
+
+            // 🔥 MERGED ALL ACTIONS INTO ONE
             actions: [
+              // Search toggle
+              IconButton(
+                icon: Icon(
+                  _isSearchingUsers ? Icons.close : Icons.search,
+                  color: Colors.white,
+                ),
+                onPressed: () {
+                  setState(() {
+                    if (_isSearchingUsers) _userSearchQuery = "";
+                    _isSearchingUsers = !_isSearchingUsers;
+                  });
+                },
+              ),
+
+              // Profile icon
               IconButton(
                 icon: const Icon(Icons.person),
                 onPressed: () {
                   Navigator.pushNamed(context, '/profile');
                 },
               ),
+
+              // Logout icon
               IconButton(icon: const Icon(Icons.logout), onPressed: _signOut),
             ],
           ),
@@ -484,10 +535,27 @@ class _ChatScreenState extends State<ChatScreen>
 
               return FadeTransition(
                 opacity: _fadeAnimation,
+
                 child: ListView(
-                  children: snapshot.data!.docs
-                      .map<Widget>((doc) => _buildUserListItem(doc))
-                      .toList(),
+                  children: (() {
+                    final users = snapshot.data!.docs;
+
+                    // 🔥 FILTER USERS BASED ON SEARCH QUERY
+                    final filteredUsers = _userSearchQuery.isEmpty
+                        ? users
+                        : users.where((doc) {
+                            final data = doc.data() as Map<String, dynamic>;
+                            final name = (data['name'] ?? '').toLowerCase();
+                            final email = (data['email'] ?? '').toLowerCase();
+
+                            return name.contains(_userSearchQuery) ||
+                                email.contains(_userSearchQuery);
+                          }).toList();
+
+                    return filteredUsers
+                        .map<Widget>((doc) => _buildUserListItem(doc))
+                        .toList();
+                  })(),
                 ),
               );
             },
@@ -503,31 +571,48 @@ class _ChatScreenState extends State<ChatScreen>
     final String email = data['email'] ?? '';
     final String userId = data['uid'];
 
+    // 🔥 FIX: Define avatar OUTSIDE the widget tree
+    Widget avatar;
+    if (data['profileImageBase64'] != null &&
+        data['profileImageBase64'].toString().isNotEmpty) {
+      avatar = CircleAvatar(
+        radius: 25,
+        backgroundImage: MemoryImage(base64Decode(data['profileImageBase64'])),
+      );
+    } else {
+      avatar = Container(
+        width: 50,
+        height: 50,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [_primaryColor, _secondaryColor],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(Icons.person, color: Colors.white),
+      );
+    }
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Material(
         color: _surfaceColor,
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
-          onTap: () => _selectUser(userId, name, email),
+          onTap: () => _selectUser(
+            userId,
+            name,
+            email,
+            data['profileImageBase64'] ?? '',
+          ),
           borderRadius: BorderRadius.circular(16),
           child: Container(
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [_primaryColor, _secondaryColor],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(Icons.person, color: Colors.white, size: 24),
-                ),
+                avatar, // 🔥 Use avatar here
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
@@ -615,15 +700,17 @@ class _ChatScreenState extends State<ChatScreen>
                 ),
                 title: Row(
                   children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(Icons.person, color: _primaryColor, size: 20),
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: Colors.white,
+                      backgroundImage: (_selectedUserImageBase64.isNotEmpty)
+                          ? MemoryImage(base64Decode(_selectedUserImageBase64))
+                          : null,
+                      child: _selectedUserImageBase64.isEmpty
+                          ? Icon(Icons.person, color: _primaryColor, size: 20)
+                          : null,
                     ),
+
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
