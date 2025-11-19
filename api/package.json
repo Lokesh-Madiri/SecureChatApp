@@ -1,0 +1,15 @@
+{
+  "name": "chat-app-notifications-api",
+  "version": "1.0.0",
+  "description": "Notification API for the chat application",
+  "main": "send-notification.js",
+  "scripts": {
+    "start": "node send-notification.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^11.11.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

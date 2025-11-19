@@ -160,11 +160,13 @@ class NotificationService {
       print('Notification data: $data');
 
       // Use your deployed Vercel server URL
+      // If you've set root to /api, use this URL:
       final String serverUrl = 'https://secure-chat-app-thb4.vercel.app';
       print('Server URL: $serverUrl');
 
       final response = await http.post(
-        Uri.parse('$serverUrl/api/send-notification'),
+        // If you've set root to /api, remove the /api prefix:
+        Uri.parse('$serverUrl/send-notification'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'userId': userId,
