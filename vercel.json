@@ -8,7 +8,7 @@
   ],
   "routes": [
     {
-      "src": "/api/send-notification",
+      "src": "/send-notification",
       "dest": "/api/send-notification.js"
     }
   ]
