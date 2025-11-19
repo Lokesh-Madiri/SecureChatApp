@@ -9,7 +9,10 @@ function initializeFirebase() {
       // For Vercel, we need to handle the service account differently
       // Check if we have the environment variables
       if (!process.env.FIREBASE_PROJECT_ID) {
-        throw new Error("Firebase environment variables not set");
+        console.log(
+          "Firebase environment variables not set, skipping initialization"
+        );
+        return;
       }
 
       const serviceAccount = {
@@ -41,12 +44,11 @@ function initializeFirebase() {
       console.log("Firebase Admin SDK initialized successfully");
     } catch (error) {
       console.error("Error initializing Firebase Admin SDK:", error);
-      throw error;
     }
   }
 }
 
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
   // Set CORS headers
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -67,6 +69,13 @@ export default async function handler(req, res) {
 
     // Initialize Firebase if not already done
     initializeFirebase();
+
+    // Check if Firebase is initialized
+    if (!initialized) {
+      return res.status(500).json({
+        error: "Firebase not initialized. Check environment variables.",
+      });
+    }
 
     const { userId, title, body, data } = req.body;
 
@@ -130,4 +139,4 @@ export default async function handler(req, res) {
       code: error.code,
     });
   }
-}
+};
