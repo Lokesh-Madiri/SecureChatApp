@@ -1,0 +1,24 @@
+{
+  "name": "chat-app-notifications",
+  "version": "1.0.0",
+  "description": "Notification service for the chat application",
+  "main": "api/send-notification.js",
+  "scripts": {
+    "start": "node api/send-notification.js",
+    "dev": "vercel dev"
+  },
+  "dependencies": {
+    "firebase-admin": "^11.11.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "keywords": [
+    "firebase",
+    "notifications",
+    "chat",
+    "messaging"
+  ],
+  "author": "Chat App Team",
+  "license": "MIT"
+}

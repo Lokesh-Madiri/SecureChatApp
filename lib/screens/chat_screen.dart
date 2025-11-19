@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 import 'package:chat_app/services/chat_service.dart';
 import 'package:chat_app/services/encryption_service.dart';
 import 'package:chat_app/services/call_service.dart';
+import 'package:chat_app/services/chat_notification_service.dart';
 import 'package:chat_app/widgets/message_input.dart';
 import 'package:chat_app/screens/video_call_screen.dart';
 import 'package:lottie/lottie.dart';
@@ -36,6 +37,8 @@ class _ChatScreenState extends State<ChatScreen>
   final ChatService _chatService = ChatService();
   final EncryptionService _encryptionService = EncryptionService();
   final CallService _callService = CallService();
+  final ChatNotificationService _notificationService =
+      ChatNotificationService();
   final ImagePicker _imagePicker = ImagePicker();
 
   // 🔥 ADDED FOR USER SEARCH

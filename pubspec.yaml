@@ -51,6 +51,8 @@ dependencies:
   just_audio: ^0.9.38
   emoji_picker_flutter: ^2.1.1
   flutter_local_notifications: ^17.2.3
+  firebase_messaging: ^16.0.3
+  http: ^1.1.0 # Added http dependency
 
 dev_dependencies:
   flutter_test:

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:chat_app/services/chat_service.dart';
+import 'package:chat_app/services/chat_notification_service.dart'; // Added import
 
 // Import for SetOptions
 import 'package:cloud_firestore/cloud_firestore.dart' show SetOptions;
@@ -9,6 +10,8 @@ class CallService {
   final _firestore = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
   final _chatService = ChatService();
+  final _notificationService =
+      ChatNotificationService(); // Added notification service
 
   Future<String> saveCallLog({
     required String otherUserId,
@@ -74,6 +77,32 @@ class CallService {
             "isRead": false,
           });
 
+      // Send notification for incoming calls
+      if (!isOutgoing) {
+        final currentUser = _auth.currentUser;
+        if (currentUser != null) {
+          // Get the caller's name from user document to ensure accuracy
+          String callerName = currentUser.displayName ?? 'User';
+          try {
+            final userDoc = await _firestore
+                .collection('users')
+                .doc(currentUser.uid)
+                .get();
+            if (userDoc.exists && userDoc.data() != null) {
+              callerName = userDoc.data()!['name'] ?? callerName;
+            }
+          } catch (e) {
+            print('Error getting caller name: $e');
+          }
+
+          await _notificationService.sendIncomingCallNotification(
+            receiverId: otherUserId,
+            callerName: callerName,
+            callType: isVideo ? 'video' : 'voice',
+          );
+        }
+      }
+
       return docRef.id;
     } catch (e) {
       print("📞 [CallService] Error saving call log: $e");
@@ -115,6 +144,32 @@ class CallService {
             "timestamp": FieldValue.serverTimestamp(),
             "isRead": false,
           });
+
+      // Send notification for incoming calls (even in error case)
+      if (!isOutgoing) {
+        final currentUser = _auth.currentUser;
+        if (currentUser != null) {
+          // Get the caller's name from user document to ensure accuracy
+          String callerName = currentUser.displayName ?? 'User';
+          try {
+            final userDoc = await _firestore
+                .collection('users')
+                .doc(currentUser.uid)
+                .get();
+            if (userDoc.exists && userDoc.data() != null) {
+              callerName = userDoc.data()!['name'] ?? callerName;
+            }
+          } catch (e) {
+            print('Error getting caller name: $e');
+          }
+
+          await _notificationService.sendIncomingCallNotification(
+            receiverId: otherUserId,
+            callerName: callerName,
+            callType: isVideo ? 'video' : 'voice',
+          );
+        }
+      }
 
       // Return a dummy ID since we couldn't save to calls collection
       return "dummy_call_id";
@@ -215,6 +270,13 @@ class CallService {
             "timestamp": FieldValue.serverTimestamp(),
             "isRead": false,
           });
+
+      // Send notification for incoming call
+      await _notificationService.sendIncomingCallNotification(
+        receiverId: receiverId,
+        callerName: callerName,
+        callType: isVideo ? 'video' : 'voice',
+      );
     } catch (e) {
       print("📞 [CallService] Error initiating incoming call: $e");
       // Silently fail if we can't initiate incoming call due to permissions

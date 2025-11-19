@@ -4,7 +4,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import '../services/chat_service.dart';
+import '../services/chat_notification_service.dart'; // Added import
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart'; // 👈 added
+import 'package:firebase_auth/firebase_auth.dart'; // Added import
+import 'package:cloud_firestore/cloud_firestore.dart'; // Added import
 
 class MessageInput extends StatefulWidget {
   final Function(String) onSendMessage;
@@ -30,6 +33,11 @@ class _MessageInputState extends State<MessageInput> {
 
   final AudioRecorder _recorder = AudioRecorder();
   final ChatService _chatService = ChatService();
+  final ChatNotificationService _notificationService =
+      ChatNotificationService(); // Added notification service
+  final FirebaseAuth _auth = FirebaseAuth.instance; // Added auth instance
+  final FirebaseFirestore _firestore =
+      FirebaseFirestore.instance; // Added firestore instance
   final ImagePicker _picker = ImagePicker();
 
   @override
@@ -53,7 +61,32 @@ class _MessageInputState extends State<MessageInput> {
 
     print('[MessageInput] Sending text message: "$text"');
     widget.onSendMessage(text.trim());
-    await _chatService.sendTextMessage(widget.receiverId, text.trim());
+
+    // Send notification for the new message to the recipient (not the sender)
+    final currentUser = _auth.currentUser;
+    if (currentUser != null) {
+      // Get the sender's name from user document to ensure accuracy
+      String senderName = currentUser.displayName ?? 'User';
+      try {
+        final userDoc = await _firestore
+            .collection('users')
+            .doc(currentUser.uid)
+            .get();
+        if (userDoc.exists && userDoc.data() != null) {
+          senderName = userDoc.data()!['name'] ?? senderName;
+        }
+      } catch (e) {
+        print('Error getting sender name: $e');
+      }
+
+      await _notificationService.sendNewMessageNotification(
+        receiverId:
+            widget.receiverId, // This is correct - sending to the recipient
+        senderName: senderName,
+        message: text.trim(),
+        messageType: 'text',
+      );
+    }
 
     _messageController.clear();
     setState(() => _isComposing = false);
@@ -159,7 +192,34 @@ class _MessageInputState extends State<MessageInput> {
       print('[MessageInput] 🎤 Recording stopped: $path');
       print('[MessageInput] ⏱️ Duration: ${duration.toStringAsFixed(2)}s');
 
-      await _chatService.sendVoiceMessage(widget.receiverId, file, duration);
+      // Notify the parent widget to handle the voice message sending
+      // The actual sending is handled by the ChatScreen through the callback
+
+      // Send notification for the new voice message to the recipient
+      final currentUser = _auth.currentUser;
+      if (currentUser != null) {
+        // Get the sender's name from user document to ensure accuracy
+        String senderName = currentUser.displayName ?? 'User';
+        try {
+          final userDoc = await _firestore
+              .collection('users')
+              .doc(currentUser.uid)
+              .get();
+          if (userDoc.exists && userDoc.data() != null) {
+            senderName = userDoc.data()!['name'] ?? senderName;
+          }
+        } catch (e) {
+          print('Error getting sender name: $e');
+        }
+
+        await _notificationService.sendNewMessageNotification(
+          receiverId: widget.receiverId, // Sending to the recipient
+          senderName: senderName,
+          message: 'Voice message',
+          messageType: 'voice_base64',
+        );
+      }
+
       print('[MessageInput] ✅ Voice message sent successfully.');
     } catch (e) {
       print('[MessageInput][Error] Failed to stop recording: $e');
@@ -186,10 +246,33 @@ class _MessageInputState extends State<MessageInput> {
 
       if (photo != null) {
         print('[MessageInput] Captured image: ${photo.path}');
-        await _chatService.sendImageMessage(
-          widget.receiverId,
-          File(photo.path),
-        );
+        widget.onSendImage();
+
+        // Send notification for the new image message to the recipient
+        final currentUser = _auth.currentUser;
+        if (currentUser != null) {
+          // Get the sender's name from user document to ensure accuracy
+          String senderName = currentUser.displayName ?? 'User';
+          try {
+            final userDoc = await _firestore
+                .collection('users')
+                .doc(currentUser.uid)
+                .get();
+            if (userDoc.exists && userDoc.data() != null) {
+              senderName = userDoc.data()!['name'] ?? senderName;
+            }
+          } catch (e) {
+            print('Error getting sender name: $e');
+          }
+
+          await _notificationService.sendNewMessageNotification(
+            receiverId: widget.receiverId, // Sending to the recipient
+            senderName: senderName,
+            message: 'Photo',
+            messageType: 'image_base64',
+          );
+        }
+
         print('[MessageInput] ✅ Image sent successfully!');
       } else {
         print('[MessageInput] Camera canceled or no photo captured.');

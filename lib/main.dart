@@ -7,6 +7,7 @@ import 'firebase_options.dart';
 import 'screens/auth_screen.dart';
 import 'screens/chat_screen.dart';
 import 'services/user_service.dart';
+import 'services/notification_service.dart';
 import 'package:lottie/lottie.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
@@ -17,6 +18,9 @@ Future<void> main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+
+    // Initialize notification service
+    await NotificationService().initialize();
   } catch (e) {
     print('Firebase initialization error: $e');
     // Re-throw the error to prevent the app from running with uninitialized Firebase
