@@ -1,3 +1,4 @@
+import 'package:chat_app/screens/home_wrapper.dart';
 import 'package:chat_app/screens/profile_scrren.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -9,16 +10,13 @@ import 'services/user_service.dart';
 import 'package:lottie/lottie.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
   runApp(const AppInitializer());
 }
 
-
 class AppInitializer extends StatelessWidget {
-  
   const AppInitializer({super.key});
 
   // Initialize Firebase safely and only once
@@ -96,7 +94,9 @@ class SecureChatApp extends StatelessWidget {
           } else if (snapshot.hasData) {
             final user = snapshot.data!;
             UserService().ensureUserDocumentExists(user);
-            return const ChatScreen();
+
+            // 🔥 Open HomeWrapper instead of ChatScreen
+            return const HomeWrapper();
           } else {
             return const AuthScreen();
           }
