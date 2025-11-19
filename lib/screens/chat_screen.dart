@@ -9,13 +9,24 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:chat_app/services/chat_service.dart';
 import 'package:chat_app/services/encryption_service.dart';
+import 'package:chat_app/services/call_service.dart';
 import 'package:chat_app/widgets/message_input.dart';
 import 'package:chat_app/screens/video_call_screen.dart';
 import 'package:lottie/lottie.dart';
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key});
+  final String userId;
+  final String userName;
+  final String userEmail;
+  final String userImageBase64;
 
+  const ChatScreen({
+    super.key,
+    required this.userId,
+    required this.userName,
+    required this.userEmail,
+    required this.userImageBase64,
+  });
   @override
   _ChatScreenState createState() => _ChatScreenState();
 }
@@ -24,6 +35,7 @@ class _ChatScreenState extends State<ChatScreen>
     with SingleTickerProviderStateMixin {
   final ChatService _chatService = ChatService();
   final EncryptionService _encryptionService = EncryptionService();
+  final CallService _callService = CallService();
   final ImagePicker _imagePicker = ImagePicker();
 
   // 🔥 ADDED FOR USER SEARCH
@@ -44,12 +56,10 @@ class _ChatScreenState extends State<ChatScreen>
   ];
   String? _selectedLottie;
 
-  String _selectedUserImageBase64 = "";
-
-  String _selectedUserId = '';
-  String _selectedUserName = '';
-  String _selectedUserEmail = '';
-  bool _isUsersListVisible = true;
+  late String _selectedUserId;
+  late String _selectedUserName;
+  late String _selectedUserEmail;
+  late String _selectedUserImageBase64;
   final ScrollController _scrollController = ScrollController();
   final Map<String, String> _decryptedMessages = {};
   late AnimationController _animationController;
@@ -59,6 +69,11 @@ class _ChatScreenState extends State<ChatScreen>
   void initState() {
     super.initState();
     _encryptionService.initialize();
+
+    _selectedUserId = widget.userId;
+    _selectedUserName = widget.userName;
+    _selectedUserEmail = widget.userEmail;
+    _selectedUserImageBase64 = widget.userImageBase64;
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 500),
       vsync: this,
@@ -69,9 +84,9 @@ class _ChatScreenState extends State<ChatScreen>
     _animationController.forward();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_isUsersListVisible) {
-        _scrollToBottom();
-      }
+      // if (!_isUsersListVisible) {
+      //   _scrollToBottom();
+      // }
     });
   }
 
@@ -319,7 +334,7 @@ class _ChatScreenState extends State<ChatScreen>
       _selectedUserName = userName;
       _selectedUserEmail = userEmail;
       _selectedUserImageBase64 = profileImage; // 🔥 Add this
-      _isUsersListVisible = false;
+      // _isUsersListVisible = false;
       _decryptedMessages.clear();
     });
 
@@ -327,14 +342,14 @@ class _ChatScreenState extends State<ChatScreen>
     _animationController.forward();
   }
 
-  void _showUsersList() {
-    setState(() {
-      _isUsersListVisible = true;
-      _selectedUserId = '';
-      _selectedUserName = '';
-      _selectedUserEmail = '';
-    });
-  }
+  // void _showUsersList() {
+  //   setState(() {
+  //     // _isUsersListVisible = true;
+  //     _selectedUserId = '';
+  //     _selectedUserName = '';
+  //     _selectedUserEmail = '';
+  //   });
+  // }
 
   Future<void> _sendImage() async {
     try {
@@ -380,6 +395,11 @@ class _ChatScreenState extends State<ChatScreen>
     // Image message
     if (type == 'image') {
       return {"message": "📷 Photo", "time": formattedTime};
+    }
+
+    // System message
+    if (type == 'system') {
+      return {"message": data['message'], "time": formattedTime};
     }
 
     // Text message → decrypt
@@ -479,11 +499,13 @@ class _ChatScreenState extends State<ChatScreen>
 
   @override
   Widget build(BuildContext context) {
+    print("🟦 [ChatScreen] build() — opening chat with ${widget.userId}");
+
     return Scaffold(
       backgroundColor: _backgroundColor,
       body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 300),
-        child: _isUsersListVisible ? _buildUsersList() : _buildChatInterface(),
+        child: _buildChatInterface(), // 👈 FIX: show chat directly
       ),
     );
   }
@@ -745,8 +767,12 @@ class _ChatScreenState extends State<ChatScreen>
               child: AppBar(
                 leading: IconButton(
                   icon: const Icon(Icons.arrow_back, color: Colors.white),
-                  onPressed: _showUsersList,
+                  onPressed: () {
+                    print("🔙 Back pressed — popping ChatScreen");
+                    Navigator.pop(context); // Go back properly
+                  },
                 ),
+
                 title: Row(
                   children: [
                     CircleAvatar(
@@ -790,37 +816,11 @@ class _ChatScreenState extends State<ChatScreen>
                 actions: [
                   IconButton(
                     icon: const Icon(Icons.video_call, color: Colors.white),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => VideoCallScreen(
-                            channelId: _chatService.getChatId(
-                              _chatService.getCurrentUserId(),
-                              _selectedUserId,
-                            ),
-                            isVideo: true,
-                          ),
-                        ),
-                      );
-                    },
+                    onPressed: () => _initiateCall(true),
                   ),
                   IconButton(
                     icon: const Icon(Icons.call, color: Colors.white),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => VideoCallScreen(
-                            channelId: _chatService.getChatId(
-                              _chatService.getCurrentUserId(),
-                              _selectedUserId,
-                            ),
-                            isVideo: false,
-                          ),
-                        ),
-                      );
-                    },
+                    onPressed: () => _initiateCall(false),
                   ),
                   PopupMenuButton<String>(
                     icon: const Icon(Icons.more_vert, color: Colors.white),
@@ -1088,6 +1088,50 @@ class _ChatScreenState extends State<ChatScreen>
           _decryptedMessages[messageId] = 'Unable to decrypt message';
         });
       }
+    }
+  }
+
+  // 🔹 Initiate a call (voice or video)
+  Future<void> _initiateCall(bool isVideo) async {
+    print(
+      "📞 [ChatScreen] Initiating ${isVideo ? 'video' : 'voice'} call to $_selectedUserId",
+    );
+
+    try {
+      // Generate a unique channel ID for this call
+      final channelId = _chatService.getChatId(
+        _chatService.getCurrentUserId(),
+        _selectedUserId,
+      );
+
+      // Save call log and send system message, get the call ID
+      final callId = await _callService.saveCallLog(
+        otherUserId: _selectedUserId,
+        otherUserName: _selectedUserName,
+        isVideo: isVideo,
+        isOutgoing: true,
+        channelId: channelId,
+      );
+
+      // Navigate to the video call screen with the call ID
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => VideoCallScreen(
+            channelId: channelId,
+            isVideo: isVideo,
+            callId: callId,
+          ),
+        ),
+      );
+    } catch (e) {
+      print("📞 [ChatScreen][Error] Failed to initiate call: $e");
+      _showSnackBar(
+        "Failed to initiate call. Calls will still show in chat history.",
+      );
+
+      // Even if we can't initiate the call properly, we still want to show it in chat
+      // The saveCallLog method already handles this fallback
     }
   }
 }

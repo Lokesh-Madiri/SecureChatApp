@@ -21,9 +21,14 @@ class ChatService {
     print(
       "[ChatService] Subscribing to users stream (excluding current user)...",
     );
+    final currentUserId = _auth.currentUser?.uid ?? '';
+    if (currentUserId.isEmpty) {
+      // Return an empty stream if not authenticated
+      return const Stream.empty();
+    }
     return _firestore
         .collection("users")
-        .where("uid", isNotEqualTo: _auth.currentUser?.uid)
+        .where("uid", isNotEqualTo: currentUserId)
         .snapshots();
   }
 

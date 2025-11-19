@@ -8,14 +8,36 @@ class AppRouter {
     switch (settings.name) {
       case '/profile':
         return MaterialPageRoute(builder: (_) => const ProfileScreen());
-      case '/chat':
-        return MaterialPageRoute(builder: (_) => const ChatScreen());
+
       case '/auth':
         return MaterialPageRoute(builder: (_) => const AuthScreen());
+
+      case '/chat':
+        // Expecting: { "userId": "...", "userName": "...", "userEmail": "...", "userImageBase64": "..." }
+        final args = settings.arguments;
+
+        if (args is Map<String, dynamic>) {
+          return MaterialPageRoute(
+            builder: (_) => ChatScreen(
+              userId: args["userId"],
+              userName: args["userName"],
+              userEmail: args["userEmail"],
+              userImageBase64: args["userImageBase64"] ?? "",
+            ),
+          );
+        }
+
+        // If wrong or missing arguments
+        return MaterialPageRoute(
+          builder: (_) => const Scaffold(
+            body: Center(child: Text("Invalid chat arguments")),
+          ),
+        );
+
       default:
         return MaterialPageRoute(
           builder: (_) =>
-              const Scaffold(body: Center(child: Text('Page not found'))),
+              const Scaffold(body: Center(child: Text("Page not found"))),
         );
     }
   }

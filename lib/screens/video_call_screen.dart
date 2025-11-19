@@ -3,15 +3,18 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:lottie/lottie.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class VideoCallScreen extends StatefulWidget {
   final String channelId;
   final bool isVideo;
+  final String? callId; // Add this to track the call
 
   const VideoCallScreen({
     super.key,
     required this.channelId,
     required this.isVideo,
+    this.callId,
   });
 
   @override
@@ -179,8 +182,18 @@ class _VideoCallScreenState extends State<VideoCallScreen>
       await _engine?.leaveChannel();
       await _engine?.stopPreview();
       await _engine?.release();
+
+      // Update call status to ended if we have a call ID
+      if (widget.callId != null && widget.callId != "dummy_call_id") {
+        final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+        await _firestore.collection("calls").doc(widget.callId).update({
+          "status": "ended",
+          "endTime": FieldValue.serverTimestamp(),
+        });
+      }
     } catch (e) {
       print('[Agora] Error ending call: $e');
+      // Silently fail if we can't update call status due to permissions
     } finally {
       if (mounted) {
         Navigator.pop(context);

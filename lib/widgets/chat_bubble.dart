@@ -103,6 +103,21 @@ class ChatBubble extends StatelessWidget {
                     if (messageType == 'voice_base64')
                       VoiceMessagePlayer(base64Audio: message),
 
+                    // ⚙️ SYSTEM MESSAGE
+                    if (messageType == 'system')
+                      Container(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          message,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey,
+                            fontStyle: FontStyle.italic,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+
                     const SizedBox(height: 4),
                     Row(
                       mainAxisSize: MainAxisSize.min,

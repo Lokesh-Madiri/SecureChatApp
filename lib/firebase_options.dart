@@ -38,8 +38,8 @@ class DefaultFirebaseOptions {
 
   // 🤖 Android (dummy for now, replace if you download google-services.json)
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: "AIzaSyAZKEHlIigrwNarB0x1DBXiOxdCcf7HC9o",
-    appId: "1:608205446090:android:dummyappid123456",
+    apiKey: "AIzaSyDDOcduv6TzHU6aeakCuqZKTKFy5YvMiZI",
+    appId: "1:608205446090:android:f6be8629c0efd937d68d33",
     messagingSenderId: "608205446090",
     projectId: "flutter-7c414",
     storageBucket: "flutter-7c414.firebasestorage.app",
