@@ -1,24 +1,35 @@
 const admin = require("firebase-admin");
 
-// Initialize Firebase Admin SDK
-// We'll initialize it in the handler to avoid issues with Vercel's serverless environment
+// We'll initialize Firebase in the handler
 let initialized = false;
 
 function initializeFirebase() {
   if (!initialized) {
     try {
-      // Get Firebase config from environment variables
+      // For Vercel, we need to handle the service account differently
+      // Check if we have the environment variables
+      if (!process.env.FIREBASE_PROJECT_ID) {
+        throw new Error("Firebase environment variables not set");
+      }
+
       const serviceAccount = {
-        type: process.env.FIREBASE_TYPE,
+        type: process.env.FIREBASE_TYPE || "service_account",
         project_id: process.env.FIREBASE_PROJECT_ID,
         private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
-        private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+        private_key: process.env.FIREBASE_PRIVATE_KEY
+          ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n")
+          : "",
         client_email: process.env.FIREBASE_CLIENT_EMAIL,
         client_id: process.env.FIREBASE_CLIENT_ID,
-        auth_uri: process.env.FIREBASE_AUTH_URI,
-        token_uri: process.env.FIREBASE_TOKEN_URI,
+        auth_uri:
+          process.env.FIREBASE_AUTH_URI ||
+          "https://accounts.google.com/o/oauth2/auth",
+        token_uri:
+          process.env.FIREBASE_TOKEN_URI ||
+          "https://oauth2.googleapis.com/token",
         auth_provider_x509_cert_url:
-          process.env.FIREBASE_AUTH_PROVIDER_X509_CERT_URL,
+          process.env.FIREBASE_AUTH_PROVIDER_X509_CERT_URL ||
+          "https://www.googleapis.com/oauth2/v1/certs",
         client_x509_cert_url: process.env.FIREBASE_CLIENT_X509_CERT_URL,
       };
 
@@ -51,6 +62,9 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Log the request for debugging
+    console.log("Received notification request:", req.body);
+
     // Initialize Firebase if not already done
     initializeFirebase();
 

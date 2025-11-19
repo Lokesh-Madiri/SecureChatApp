@@ -20,17 +20,28 @@ class ChatNotificationService {
     required String messageType,
   }) async {
     try {
+      print('ChatNotificationService: Sending message notification');
+      print('Receiver ID: $receiverId');
+      print('Sender Name: $senderName');
+      print('Message: $message');
+      print('Message Type: $messageType');
+
       // Get receiver's user data to check if they want notifications
       final receiverDoc = await _firestore
           .collection('users')
           .doc(receiverId)
           .get();
-      if (!receiverDoc.exists) return;
+      if (!receiverDoc.exists) {
+        print('Receiver document does not exist');
+        return;
+      }
 
       final receiverData = receiverDoc.data();
       // Check if user has notifications enabled (default to true if not set)
       final notificationsEnabled =
           receiverData?['notificationsEnabled'] ?? true;
+
+      print('Notifications enabled for receiver: $notificationsEnabled');
 
       if (!notificationsEnabled) {
         print('Notifications disabled for user: $receiverId');
@@ -63,6 +74,9 @@ class ChatNotificationService {
           body = 'New message received';
       }
 
+      print('Notification title: $title');
+      print('Notification body: $body');
+
       // Send notification
       await _notificationService.sendNotificationToUser(
         userId: receiverId,
@@ -87,17 +101,29 @@ class ChatNotificationService {
     required String callType, // 'voice' or 'video'
   }) async {
     try {
+      print('ChatNotificationService: Sending call notification');
+      print('Receiver ID: $receiverId');
+      print('Caller Name: $callerName');
+      print('Call Type: $callType');
+
       // Get receiver's user data to check if they want notifications
       final receiverDoc = await _firestore
           .collection('users')
           .doc(receiverId)
           .get();
-      if (!receiverDoc.exists) return;
+      if (!receiverDoc.exists) {
+        print('Receiver document does not exist');
+        return;
+      }
 
       final receiverData = receiverDoc.data();
       // Check if user has call notifications enabled (default to true if not set)
       final callNotificationsEnabled =
           receiverData?['callNotificationsEnabled'] ?? true;
+
+      print(
+        'Call notifications enabled for receiver: $callNotificationsEnabled',
+      );
 
       if (!callNotificationsEnabled) {
         print('Call notifications disabled for user: $receiverId');
@@ -106,6 +132,9 @@ class ChatNotificationService {
 
       final title = 'Incoming ${callType} call';
       final body = '$callerName is calling you';
+
+      print('Notification title: $title');
+      print('Notification body: $body');
 
       // Send notification
       await _notificationService.sendNotificationToUser(

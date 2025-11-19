@@ -154,13 +154,14 @@ class NotificationService {
     Map<String, dynamic>? data,
   }) async {
     try {
-      // For development, you can use a local server or ngrok
-      // For production, replace with your deployed Vercel URL
-      final String serverUrl = const String.fromEnvironment(
-        'NOTIFICATION_SERVER_URL',
-        defaultValue:
-            'http://localhost:3000', // Default to local for development
-      );
+      print('Sending notification to user: $userId');
+      print('Notification title: $title');
+      print('Notification body: $body');
+      print('Notification data: $data');
+
+      // Use your deployed Vercel server URL
+      final String serverUrl = 'https://secure-chat-app-thb4.vercel.app';
+      print('Server URL: $serverUrl');
 
       final response = await http.post(
         Uri.parse('$serverUrl/api/send-notification'),
@@ -172,6 +173,9 @@ class NotificationService {
           'data': data,
         }),
       );
+
+      print('Server response status: ${response.statusCode}');
+      print('Server response body: ${response.body}');
 
       if (response.statusCode == 200) {
         print('Notification sent successfully via server');
