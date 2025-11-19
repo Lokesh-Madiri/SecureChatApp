@@ -352,6 +352,50 @@ class _ChatScreenState extends State<ChatScreen>
     }
   }
 
+  Future<Map<String, String>> _getLatestMessage(String userId) async {
+    final chatId = _chatService.getChatId(
+      _chatService.getCurrentUserId(),
+      userId,
+    );
+
+    final snapshot = await FirebaseFirestore.instance
+        .collection('chats')
+        .doc(chatId)
+        .collection('messages')
+        .orderBy('timestamp', descending: true)
+        .limit(1)
+        .get();
+
+    if (snapshot.docs.isEmpty) {
+      return {"message": "No messages yet", "time": ""};
+    }
+
+    final data = snapshot.docs.first.data();
+    final type = data['type'];
+    final timestamp = data['timestamp'] as Timestamp?;
+    final formattedTime = timestamp != null
+        ? DateFormat('hh:mm a').format(timestamp.toDate())
+        : "";
+
+    // Image message
+    if (type == 'image') {
+      return {"message": "📷 Photo", "time": formattedTime};
+    }
+
+    // Text message → decrypt
+    if (type == 'text') {
+      try {
+        final encrypted = data['message'];
+        final decrypted = await _encryptionService.decrypt(encrypted);
+        return {"message": decrypted, "time": formattedTime};
+      } catch (e) {
+        return {"message": "Message", "time": formattedTime};
+      }
+    }
+
+    return {"message": "Message", "time": formattedTime};
+  }
+
   Future<void> _signOut() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -447,7 +491,7 @@ class _ChatScreenState extends State<ChatScreen>
   Widget _buildUsersList() {
     return Column(
       children: [
-        // Custom App Bar
+        // TOP BAR
         Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -466,96 +510,78 @@ class _ChatScreenState extends State<ChatScreen>
           child: AppBar(
             backgroundColor: Colors.transparent,
             elevation: 0,
+            title: const Text("Secure Chat"),
 
-            // 🔥 SEARCH BAR ADDED HERE
-            title: _isSearchingUsers
-                ? TextField(
-                    autofocus: true,
-                    style: const TextStyle(color: Colors.white),
-                    cursorColor: Colors.white,
-                    decoration: const InputDecoration(
-                      hintText: "Search users...",
-                      hintStyle: TextStyle(color: Colors.white70),
-                      border: InputBorder.none,
-                    ),
-                    onChanged: (value) {
-                      setState(() {
-                        _userSearchQuery = value.toLowerCase();
-                      });
-                    },
-                  )
-                : const Text("Secure Chat"),
-
-            // 🔥 MERGED ALL ACTIONS INTO ONE
             actions: [
-              // Search toggle
-              IconButton(
-                icon: Icon(
-                  _isSearchingUsers ? Icons.close : Icons.search,
-                  color: Colors.white,
-                ),
-                onPressed: () {
-                  setState(() {
-                    if (_isSearchingUsers) _userSearchQuery = "";
-                    _isSearchingUsers = !_isSearchingUsers;
-                  });
-                },
-              ),
-
-              // Profile icon
               IconButton(
                 icon: const Icon(Icons.person),
                 onPressed: () {
                   Navigator.pushNamed(context, '/profile');
                 },
               ),
-
-              // Logout icon
               IconButton(icon: const Icon(Icons.logout), onPressed: _signOut),
             ],
           ),
         ),
 
-        // Users List
+        // 🔍 SEARCH BAR (WhatsApp style)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: TextField(
+              style: const TextStyle(color: Colors.white),
+              cursorColor: Colors.white,
+              decoration: InputDecoration(
+                icon: Icon(Icons.search, color: Colors.white70),
+                hintText: "Search users...",
+                hintStyle: TextStyle(color: Colors.white60),
+                border: InputBorder.none,
+              ),
+              onChanged: (value) {
+                setState(() {
+                  _userSearchQuery = value.toLowerCase();
+                });
+              },
+            ),
+          ),
+        ),
+
+        // USER LIST
         Expanded(
           child: StreamBuilder<QuerySnapshot>(
             stream: _chatService.getUsersStream(),
             builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return _buildErrorState('Error: ${snapshot.error}');
-              }
-
-              if (snapshot.connectionState == ConnectionState.waiting) {
+              if (snapshot.hasError)
+                return _buildErrorState("Error: ${snapshot.error}");
+              if (snapshot.connectionState == ConnectionState.waiting)
                 return _buildLoadingState();
-              }
 
-              if (snapshot.data!.docs.isEmpty) {
-                return _buildEmptyState();
-              }
+              final users = snapshot.data!.docs;
+              if (users.isEmpty) return _buildEmptyState();
+
+              // 🔥 Apply search filter
+              final filtered = _userSearchQuery.isEmpty
+                  ? users
+                  : users.where((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      final name = (data['name'] ?? "").toLowerCase();
+                      final email = (data['email'] ?? "").toLowerCase();
+                      return name.contains(_userSearchQuery) ||
+                          email.contains(_userSearchQuery);
+                    }).toList();
 
               return FadeTransition(
                 opacity: _fadeAnimation,
-
                 child: ListView(
-                  children: (() {
-                    final users = snapshot.data!.docs;
-
-                    // 🔥 FILTER USERS BASED ON SEARCH QUERY
-                    final filteredUsers = _userSearchQuery.isEmpty
-                        ? users
-                        : users.where((doc) {
-                            final data = doc.data() as Map<String, dynamic>;
-                            final name = (data['name'] ?? '').toLowerCase();
-                            final email = (data['email'] ?? '').toLowerCase();
-
-                            return name.contains(_userSearchQuery) ||
-                                email.contains(_userSearchQuery);
-                          }).toList();
-
-                    return filteredUsers
-                        .map<Widget>((doc) => _buildUserListItem(doc))
-                        .toList();
-                  })(),
+                  padding: EdgeInsets.zero, // 🔥 Remove unwanted top space
+                  children: filtered
+                      .map((doc) => _buildUserListItem(doc))
+                      .toList(),
                 ),
               );
             },
@@ -568,82 +594,105 @@ class _ChatScreenState extends State<ChatScreen>
   Widget _buildUserListItem(DocumentSnapshot document) {
     Map<String, dynamic> data = document.data() as Map<String, dynamic>;
     final String name = data['name'] ?? 'Unknown User';
-    final String email = data['email'] ?? '';
     final String userId = data['uid'];
 
-    // 🔥 FIX: Define avatar OUTSIDE the widget tree
-    Widget avatar;
-    if (data['profileImageBase64'] != null &&
-        data['profileImageBase64'].toString().isNotEmpty) {
-      avatar = CircleAvatar(
-        radius: 25,
-        backgroundImage: MemoryImage(base64Decode(data['profileImageBase64'])),
-      );
-    } else {
-      avatar = Container(
-        width: 50,
-        height: 50,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [_primaryColor, _secondaryColor],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          shape: BoxShape.circle,
-        ),
-        child: const Icon(Icons.person, color: Colors.white),
-      );
-    }
+    // Profile Image
+    final hasImage =
+        data['profileImageBase64'] != null &&
+        data['profileImageBase64'].toString().isNotEmpty;
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Material(
-        color: _surfaceColor,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          onTap: () => _selectUser(
-            userId,
-            name,
-            email,
-            data['profileImageBase64'] ?? '',
+    final avatar = CircleAvatar(
+      radius: 28,
+      backgroundColor: Colors.grey.shade800,
+      backgroundImage: hasImage
+          ? MemoryImage(base64Decode(data['profileImageBase64']))
+          : null,
+      child: !hasImage
+          ? Icon(Icons.person, size: 28, color: _onSurfaceColor)
+          : null,
+    );
+
+    return InkWell(
+      onTap: () => _selectUser(
+        userId,
+        name,
+        data['email'],
+        data['profileImageBase64'] ?? '',
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: Colors.white.withOpacity(0.05), width: 1),
           ),
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                avatar, // 🔥 Use avatar here
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        name,
-                        style: TextStyle(
-                          color: _onSurfaceColor,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        email,
-                        style: TextStyle(
-                          color: _onSurfaceColor.withOpacity(0.6),
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
+        ),
+        child: Row(
+          children: [
+            avatar,
+            const SizedBox(width: 14),
+
+            // NAME + LATEST MESSAGE + TIME (like WhatsApp)
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // NAME
+                  Text(
+                    name,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-                Icon(
-                  Icons.chevron_right,
-                  color: _onSurfaceColor.withOpacity(0.5),
-                ),
-              ],
+                  const SizedBox(height: 4),
+
+                  // LATEST MESSAGE
+                  FutureBuilder<Map<String, String>>(
+                    future: _getLatestMessage(userId),
+                    builder: (context, snapshot) {
+                      final msg = snapshot.data?["message"] ?? "";
+                      final time = snapshot.data?["time"] ?? "";
+
+                      return Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              msg,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.6),
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
             ),
-          ),
+
+            const SizedBox(width: 8),
+
+            // MESSAGE TIME (WhatsApp style)
+            FutureBuilder<Map<String, String>>(
+              future: _getLatestMessage(userId),
+              builder: (context, snapshot) {
+                final time = snapshot.data?["time"] ?? "";
+
+                return Text(
+                  time,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.5),
+                    fontSize: 12,
+                  ),
+                );
+              },
+            ),
+          ],
         ),
       ),
     );
